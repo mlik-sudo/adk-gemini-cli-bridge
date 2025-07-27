@@ -11,45 +11,11 @@
     }
   },
 
-  "label_github_issue": {
+  "adk-gemini-bridge": {
     "command": "/Users/sahebmlik/.pyenv/shims/python3",
     "args": [
       "-u",
-      "/Users/sahebmlik/.gemini/bridge.py",
-      "label_github_issue"
-    ],
-    "stdout": "/Users/sahebmlik/.gemini/bridge.log",
-    "stderr": "/Users/sahebmlik/.gemini/bridge.log"
-  },
-
-  "watch_collect": {
-    "command": "/Users/sahebmlik/.pyenv/shims/python3",
-    "args": [
-      "-u",
-      "/Users/sahebmlik/.gemini/bridge.py",
-      "watch_collect"
-    ],
-    "stdout": "/Users/sahebmlik/.gemini/bridge.log",
-    "stderr": "/Users/sahebmlik/.gemini/bridge.log"
-  },
-
-  "analyse_watch_report": {
-    "command": "/Users/sahebmlik/.pyenv/shims/python3",
-    "args": [
-      "-u",
-      "/Users/sahebmlik/.gemini/bridge.py",
-      "analyse_watch_report"
-    ],
-    "stdout": "/Users/sahebmlik/.gemini/bridge.log",
-    "stderr": "/Users/sahebmlik/.gemini/bridge.log"
-  },
-
-  "curate_digest": {
-    "command": "/Users/sahebmlik/.pyenv/shims/python3",
-    "args": [
-      "-u",
-      "/Users/sahebmlik/.gemini/bridge.py",
-      "curate_digest"
+      "/Users/sahebmlik/.gemini/bridge.py"
     ],
     "stdout": "/Users/sahebmlik/.gemini/bridge.log",
     "stderr": "/Users/sahebmlik/.gemini/bridge.log"
