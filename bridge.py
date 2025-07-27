@@ -42,6 +42,16 @@ AGENTS_CONFIG = {
 }
 
 # ---------------------------------------------------------------------------
+# 1.1  Catalogue MCP des outils disponibles --------------------------------
+# ---------------------------------------------------------------------------
+AVAILABLE_TOOLS = {
+    "watch_collect": {"description": "Surveillance GitHub/PyPI/NPM pour collecter les nouveautés tech"},
+    "analyse_watch_report": {"description": "Analyse Gemini du rapport de veille markdown"},
+    "curate_digest": {"description": "Génération newsletter + threads sociaux à partir de l'analyse"},
+    "label_github_issue": {"description": "Étiquetage automatique d'issues GitHub"}
+}
+
+# ---------------------------------------------------------------------------
 # 2.  Setup logging --------------------------------------------------------
 # ---------------------------------------------------------------------------
 logging.basicConfig(
@@ -190,6 +200,60 @@ def dispatch(tool: str, params: dict = None) -> dict:
         return {"status": "error", "error": str(e)}
 
 # ---------------------------------------------------------------------------
+# 5.1  Dispatch JSON-RPC pour protocole MCP --------------------------------
+# ---------------------------------------------------------------------------
+
+def dispatch_rpc(request: dict):
+    """Répond aux appels JSON-RPC du protocole MCP."""
+    method = request.get("method")
+    
+    logger.info(f"Received JSON-RPC method: {method}")
+    
+    # 1️⃣ Hand-shake
+    if method == "initialize":
+        logger.info("MCP initialize handshake")
+        return {"jsonrpc": "2.0", "id": request.get("id"), "result": {}}
+
+    # 2️⃣ Catalogue des outils
+    if method == "tools/list":
+        logger.info("MCP tools/list request")
+        # Transforme AVAILABLE_TOOLS → format MCP
+        tools = [
+            {
+                "name": name,
+                "description": meta["description"],
+                "inputSchema": {"type": "object", "properties": {}, "required": []},
+            }
+            for name, meta in AVAILABLE_TOOLS.items()
+        ]
+        return {"jsonrpc": "2.0", "id": request.get("id"), "result": {"tools": tools}}
+
+    # 3️⃣ Appels réels envoyés par run_tool
+    if method == "tools/call":
+        params = request.get("params", {})
+        tool_name = params.get("name")
+        tool_args = params.get("arguments", {})
+        
+        logger.info(f"MCP tools/call for {tool_name}")
+        result = dispatch(tool_name, tool_args)
+        
+        return {
+            "jsonrpc": "2.0",
+            "id": request.get("id"),
+            "result": {
+                "content": [{"type": "text", "text": json.dumps(result)}]
+            }
+        }
+
+    # Fallback : inconnu
+    logger.warning(f"Unknown JSON-RPC method: {method}")
+    return {
+        "jsonrpc": "2.0",
+        "id": request.get("id"),
+        "error": {"code": -32601, "message": f"Unknown method {method}"}
+    }
+
+# ---------------------------------------------------------------------------
 # 6.  Signal handlers ------------------------------------------------------
 # ---------------------------------------------------------------------------
 
@@ -236,13 +300,20 @@ def main():
                 
             try:
                 payload = json.loads(line)
-                tool = payload.get("tool")
-                params = payload.get("params", {})
                 
-                if not tool:
-                    result = {"status": "error", "error": "Missing 'tool' in payload"}
+                # Check if it's JSON-RPC (MCP) or legacy format
+                if "method" in payload:
+                    # JSON-RPC format (MCP protocol)
+                    result = dispatch_rpc(payload)
                 else:
-                    result = dispatch(tool, params)
+                    # Legacy format for backward compatibility
+                    tool = payload.get("tool")
+                    params = payload.get("params", {})
+                    
+                    if not tool:
+                        result = {"status": "error", "error": "Missing 'tool' in payload"}
+                    else:
+                        result = dispatch(tool, params)
                 
                 print(json.dumps(result), flush=True)
                 
