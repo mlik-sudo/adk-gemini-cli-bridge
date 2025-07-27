@@ -1,0 +1,37 @@
+{
+  "label_github_issue": {
+    "command": "/usr/bin/python3",
+    "args": [
+      "-u",
+      "~/.gemini/bridge.py",
+      "label_github_issue"
+    ]
+  },
+
+  "watch_collect": {
+    "command": "/usr/bin/python3",
+    "args": [
+      "-u",
+      "~/.gemini/bridge.py",
+      "watch_collect"
+    ]
+  },
+
+  "analyse_watch_report": {
+    "command": "/usr/bin/python3",
+    "args": [
+      "-u",
+      "~/.gemini/bridge.py",
+      "analyse_watch_report"
+    ]
+  },
+
+  "curate_digest": {
+    "command": "/usr/bin/python3",
+    "args": [
+      "-u",
+      "~/.gemini/bridge.py",
+      "curate_digest"
+    ]
+  }
+}
