@@ -1,0 +1,23 @@
+{
+  "toolboxFixed": {
+    "command": "/Users/sahebmlik/scripts/toolbox_stdio_simple.sh",
+    "args": [],
+    "env": {
+      "POSTGRES_HOST": "localhost",
+      "POSTGRES_PORT": "5432",
+      "POSTGRES_USER": "postgres",
+      "POSTGRES_PASSWORD": "postgres",
+      "POSTGRES_DATABASE": "hotels_rag"
+    },
+    "transport": "stdio"
+  },
+
+  "adk_gemini_bridge": {
+    "command": "/usr/bin/python3",
+    "args": [
+      "-u",
+      "/Users/sahebmlik/.gemini/bridge.py"
+    ],
+    "transport": "stdio"
+  }
+}
