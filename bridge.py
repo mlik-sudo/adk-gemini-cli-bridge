@@ -406,7 +406,7 @@ def main():
                     print(json.dumps(result), flush=True)
                 except BrokenPipeError:
                     logger.info("Client disconnected during response (broken pipe)")
-                    break
+                    sys.exit(0)  # Sortie propre
                 
             except json.JSONDecodeError as e:
                 logger.error(f"JSON decode error on line {line_num}: {e}")
@@ -415,10 +415,10 @@ def main():
                     print(json.dumps(error_result), flush=True)
                 except BrokenPipeError:
                     logger.info("Client disconnected during error response")
-                    break
+                    sys.exit(0)
             except BrokenPipeError:
                 logger.info("Client disconnected (broken pipe)")
-                break
+                sys.exit(0)
             except Exception as e:
                 logger.exception(f"Unexpected error on line {line_num}")
                 error_result = {"status": "error", "error": str(e)}
@@ -426,7 +426,7 @@ def main():
                     print(json.dumps(error_result), flush=True)
                 except BrokenPipeError:
                     logger.info("Client disconnected during exception response")
-                    break
+                    sys.exit(0)
                 
     except KeyboardInterrupt:
         logger.info("Bridge interrupted by user")

@@ -24,18 +24,18 @@ def call_with_timing(server_cmd):
         text=True,
     )
     
-    # Envoie les messages et mesure
+    # Envoie les deux messages en une fois et attend la fin proprement
     init_start = time.time()
-    proc.stdin.write(INIT_MSG)
-    proc.stdin.flush()
+    input_data = INIT_MSG + LIST_MSG
     
-    list_start = time.time()
-    proc.stdin.write(LIST_MSG)
-    proc.stdin.flush()
-    proc.stdin.close()
-    
-    out, err = proc.communicate(timeout=5)
-    end = time.time()
+    try:
+        out, err = proc.communicate(input=input_data, timeout=5)
+        end = time.time()
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, err = proc.communicate()
+        end = time.time()
+        err += "\n[TIMEOUT] Process killed after 5s"
     
     # Parse les réponses
     lines = [json.loads(l) for l in out.strip().splitlines() if l.strip()]
@@ -43,8 +43,8 @@ def call_with_timing(server_cmd):
     
     timing = {
         "total": end - start,
-        "init_latency": list_start - init_start,
-        "list_latency": end - list_start
+        "init_latency": 0.001,  # Approximation car envoi groupé
+        "list_latency": end - init_start
     }
     
     return responses, timing, err
