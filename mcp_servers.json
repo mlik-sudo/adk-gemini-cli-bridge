@@ -17,7 +17,6 @@
       "-u",
       "/Users/sahebmlik/.gemini/bridge.py"
     ],
-    "stdout": "/Users/sahebmlik/.gemini/bridge.log",
     "stderr": "/Users/sahebmlik/.gemini/bridge.log"
   }
 }
