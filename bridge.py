@@ -402,16 +402,31 @@ def main():
                     else:
                         result = dispatch(tool, params)
                 
-                print(json.dumps(result), flush=True)
+                try:
+                    print(json.dumps(result), flush=True)
+                except BrokenPipeError:
+                    logger.info("Client disconnected during response (broken pipe)")
+                    break
                 
             except json.JSONDecodeError as e:
                 logger.error(f"JSON decode error on line {line_num}: {e}")
                 error_result = {"status": "error", "error": f"Invalid JSON on line {line_num}: {e}"}
-                print(json.dumps(error_result), flush=True)
+                try:
+                    print(json.dumps(error_result), flush=True)
+                except BrokenPipeError:
+                    logger.info("Client disconnected during error response")
+                    break
+            except BrokenPipeError:
+                logger.info("Client disconnected (broken pipe)")
+                break
             except Exception as e:
                 logger.exception(f"Unexpected error on line {line_num}")
                 error_result = {"status": "error", "error": str(e)}
-                print(json.dumps(error_result), flush=True)
+                try:
+                    print(json.dumps(error_result), flush=True)
+                except BrokenPipeError:
+                    logger.info("Client disconnected during exception response")
+                    break
                 
     except KeyboardInterrupt:
         logger.info("Bridge interrupted by user")
