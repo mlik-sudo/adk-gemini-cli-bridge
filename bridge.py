@@ -212,17 +212,104 @@ def dispatch_rpc(request: dict):
     # 1️⃣ Hand-shake
     if method == "initialize":
         logger.info("MCP initialize handshake")
-        return {"jsonrpc": "2.0", "id": request.get("id"), "result": {}}
+        return {
+            "jsonrpc": "2.0", 
+            "id": request.get("id"), 
+            "result": {
+                "protocolVersion": "2025-02-01",
+                "capabilities": {
+                    "tools": {}
+                },
+                "serverInfo": {
+                    "name": "adk-gemini-bridge",
+                    "version": "1.0.0",
+                    "description": "ADK Agents Bridge - 4 tools for tech watch, analysis, curation, and GitHub labeling"
+                }
+            }
+        }
 
     # 2️⃣ Catalogue des outils
     if method == "tools/list":
         logger.info("MCP tools/list request")
-        # Transforme AVAILABLE_TOOLS → format MCP
+        # Schemas complets pour chaque tool
+        tool_schemas = {
+            "watch_collect": {
+                "type": "object",
+                "properties": {
+                    "sources": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Sources à surveiller (github, pypi, npm)",
+                        "default": ["github", "pypi", "npm"]
+                    },
+                    "output_format": {
+                        "type": "string", 
+                        "description": "Format de sortie",
+                        "default": "markdown"
+                    }
+                },
+                "required": []
+            },
+            "analyse_watch_report": {
+                "type": "object",
+                "properties": {
+                    "report": {
+                        "type": "string",
+                        "description": "Contenu du rapport markdown à analyser"
+                    },
+                    "report_path": {
+                        "type": "string",
+                        "description": "Chemin vers le fichier rapport"
+                    }
+                },
+                "anyOf": [{"required": ["report"]}, {"required": ["report_path"]}]
+            },
+            "curate_digest": {
+                "type": "object", 
+                "properties": {
+                    "analysis_json": {
+                        "type": "object",
+                        "description": "Résultat de l'analyse au format JSON"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Format de sortie (newsletter, social)",
+                        "default": "newsletter"
+                    },
+                    "output": {
+                        "type": "string",
+                        "description": "Type de sortie (markdown, html)",
+                        "default": "markdown"
+                    }
+                },
+                "required": ["analysis_json"]
+            },
+            "label_github_issue": {
+                "type": "object",
+                "properties": {
+                    "repo_name": {
+                        "type": "string",
+                        "description": "Nom du repository (owner/repo)"
+                    },
+                    "issue_number": {
+                        "type": "integer",
+                        "description": "Numéro de l'issue à étiqueter"
+                    },
+                    "dry_run": {
+                        "type": "boolean", 
+                        "description": "Mode simulation (pas de modifications réelles)",
+                        "default": True
+                    }
+                },
+                "required": ["repo_name", "issue_number"]
+            }
+        }
+        
         tools = [
             {
                 "name": name,
                 "description": meta["description"],
-                "inputSchema": {"type": "object", "properties": {}, "required": []},
+                "inputSchema": tool_schemas.get(name, {"type": "object", "properties": {}, "required": []}),
             }
             for name, meta in AVAILABLE_TOOLS.items()
         ]
