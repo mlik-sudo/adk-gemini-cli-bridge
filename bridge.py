@@ -10,6 +10,7 @@ import sys
 import signal
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 from functools import lru_cache
@@ -22,23 +23,27 @@ AGENTS_CONFIG = {
     "label_github_issue": {
         "path": ADK_WORKSPACE / "github_labeler" / "main.py",
         "python": ADK_WORKSPACE / "adk-env" / "bin" / "python",
-        "description": "GitHub Issue Labeler Agent"
+        "description": "GitHub Issue Labeler Agent",
+        "env_vars": ["GITHUB_TOKEN"],
     },
     "watch_collect": {
         "path": ADK_WORKSPACE / "veille_agent" / "main.py",
-        "python": ADK_WORKSPACE / "veille_agent" / ".venv" / "bin" / "python", 
-        "description": "Watch/Veille Agent for collecting tech updates"
+        "python": ADK_WORKSPACE / "veille_agent" / ".venv" / "bin" / "python",
+        "description": "Watch/Veille Agent for collecting tech updates",
+        "env_vars": [],
     },
     "analyse_watch_report": {
         "path": ADK_WORKSPACE / "gemini_analysis" / "main.py",
         "python": ADK_WORKSPACE / "adk-env" / "bin" / "python",
-        "description": "Gemini Analysis Agent for report analysis"
+        "description": "Gemini Analysis Agent for report analysis",
+        "env_vars": ["GEMINI_API_KEY"],
     },
     "curate_digest": {
         "path": ADK_WORKSPACE / "curateur_agent" / "main.py",
         "python": ADK_WORKSPACE / "adk-env" / "bin" / "python",
-        "description": "Curator Agent for content curation"
-    }
+        "description": "Curator Agent for content curation",
+        "env_vars": [],
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -56,31 +61,66 @@ logger = logging.getLogger(__name__)
 # 3.  Agent execution functions --------------------------------------------
 # ---------------------------------------------------------------------------
 
+
+def _get_agent_env(agent_name: str) -> dict:
+    """Creates a secure, minimal environment for an agent."""
+    agent_config = AGENTS_CONFIG.get(agent_name, {})
+    required_vars = agent_config.get("env_vars", [])
+
+    # Start with a minimal environment
+    env = {
+        "PATH": os.environ.get("PATH", ""),
+        "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),  # for Windows compatibility
+        "PYTHONPATH": str(ADK_WORKSPACE),
+    }
+
+    # Add required variables
+    for var in required_vars:
+        value = os.environ.get(var)
+        if value is None:
+            logger.error(
+                f"Missing required environment variable '{var}' for agent '{agent_name}'"
+            )
+            raise ValueError(f"Missing required environment variable: {var}")
+        env[var] = value
+
+    return env
+
+
 def run_agent_script(agent_name: str, params: dict) -> dict:
     """Execute an ADK agent Python script with parameters."""
     try:
         agent_config = AGENTS_CONFIG[agent_name]
         agent_path = agent_config["path"]
         python_path = agent_config["python"]
-        
+
+        # --- Path validation ---
+        try:
+            resolved_workspace = ADK_WORKSPACE.resolve()
+            resolved_agent_path = agent_path.resolve()
+            resolved_python_path = python_path.resolve()
+
+            if not resolved_agent_path.is_relative_to(resolved_workspace):
+                raise PermissionError("Agent path is outside of the ADK workspace.")
+            if not resolved_python_path.is_relative_to(resolved_workspace):
+                raise PermissionError("Python interpreter is outside of the ADK workspace.")
+        except (PermissionError, FileNotFoundError) as e:
+            logger.error(f"Path validation failed for agent '{agent_name}': {e}")
+            return {"status": "error", "error": f"Security validation failed: {e}"}
+        # -------------------------
+
         # Check if the Python interpreter exists
         if not python_path.exists():
-            return {"status": "error", "error": f"Python interpreter not found: {python_path}"}
-        
+            return {
+                "status": "error",
+                "error": f"Python interpreter not found: {python_path}",
+            }
+
         # Prepare the environment
-        env = os.environ.copy()
-        env["PYTHONPATH"] = str(ADK_WORKSPACE)
-        
+        env = _get_agent_env(agent_name)
+
         # Convert params to command line arguments or JSON input
         cmd = [str(python_path), str(agent_path)]
-        
-        # If params contain specific keys, pass them as arguments
-        if "issue_number" in params:
-            cmd.extend(["--issue", str(params["issue_number"])])
-        if "repo_name" in params:
-            cmd.extend(["--repo", params["repo_name"]])
-        if "dry_run" in params and params["dry_run"]:
-            cmd.append("--dry-run")
         
         # Execute the agent
         result = subprocess.run(
@@ -116,43 +156,77 @@ def run_agent_script(agent_name: str, params: dict) -> dict:
 # 4.  Dispatch functions ---------------------------------------------------
 # ---------------------------------------------------------------------------
 
+
 def dispatch_label_github_issue(params: dict) -> dict:
-    """Handle GitHub issue labeling."""
-    required_params = ["repo_name", "issue_number"]
-    missing = [p for p in required_params if p not in params]
-    if missing:
-        return {"status": "error", "error": f"Missing required parameters: {missing}"}
-    
-    # The GitHub labeler automatically determines labels based on content
-    # Add dry_run by default to avoid making actual changes unless explicitly requested
+    """Handle GitHub issue labeling with input validation."""
+    # --- Validation ---
+    if "repo_name" not in params or "issue_number" not in params:
+        return {
+            "status": "error",
+            "error": "Missing required parameters: 'repo_name' and 'issue_number'",
+        }
+    if not isinstance(params["repo_name"], str) or not re.match(
+        r"^[a-zA-Z0-9-]+\/[a-zA-Z0-9-.]+$", params["repo_name"]
+    ):
+        return {"status": "error", "error": "Invalid 'repo_name' format"}
+    if not isinstance(params["issue_number"], int):
+        return {"status": "error", "error": "'issue_number' must be an integer"}
+    if "dry_run" in params and not isinstance(params["dry_run"], bool):
+        return {"status": "error", "error": "'dry_run' must be a boolean"}
+    # --- End Validation ---
+
     if "dry_run" not in params:
         params["dry_run"] = True
-    
+
     return run_agent_script("label_github_issue", params)
 
+
 def dispatch_watch_collect(params: dict) -> dict:
-    """Handle watch/veille collection."""
-    # Default parameters for watch collection
-    default_params = {
-        "sources": ["github", "pypi", "npm"],
-        "output_format": "markdown"
-    }
+    """Handle watch/veille collection with input validation."""
+    # --- Validation ---
+    valid_sources = {"github", "pypi", "npm"}
+    if "sources" in params:
+        if not isinstance(params["sources"], list) or not all(
+            isinstance(s, str) and s in valid_sources for s in params["sources"]
+        ):
+            return {"status": "error", "error": f"Invalid 'sources'. Must be a list of {list(valid_sources)}"}
+    if "output_format" in params and params["output_format"] != "markdown":
+        return {"status": "error", "error": "Invalid 'output_format'. Only 'markdown' is supported."}
+    # --- End Validation ---
+
+    default_params = {"sources": list(valid_sources), "output_format": "markdown"}
     merged_params = {**default_params, **params}
     return run_agent_script("watch_collect", merged_params)
 
+
 def dispatch_analyse_watch_report(params: dict) -> dict:
-    """Handle watch report analysis."""
+    """Handle watch report analysis with input validation."""
+    # --- Validation ---
     if "report" not in params and "report_path" not in params:
         return {"status": "error", "error": "Missing 'report' or 'report_path' parameter"}
-    
+    if "report_path" in params:
+        try:
+            # Security: ensure report_path is within the workspace
+            report_path = Path(params["report_path"]).resolve()
+            if not report_path.is_relative_to(ADK_WORKSPACE.resolve()):
+                raise PermissionError("Access to report path is denied.")
+        except (PermissionError, Exception) as e:
+            return {"status": "error", "error": f"Invalid 'report_path': {e}"}
+    # --- End Validation ---
+
     return run_agent_script("analyse_watch_report", params)
 
+
 def dispatch_curate_digest(params: dict) -> dict:
-    """Handle content curation."""
-    default_params = {
-        "format": "newsletter",
-        "output": "markdown"
-    }
+    """Handle content curation with input validation."""
+    # --- Validation ---
+    if "format" in params and params["format"] != "newsletter":
+        return {"status": "error", "error": "Invalid 'format'. Only 'newsletter' is supported."}
+    if "output" in params and params["output"] != "markdown":
+         return {"status": "error", "error": "Invalid 'output'. Only 'markdown' is supported."}
+    # --- End Validation ---
+
+    default_params = {"format": "newsletter", "output": "markdown"}
     merged_params = {**default_params, **params}
     return run_agent_script("curate_digest", merged_params)
 
