@@ -1,0 +1,175 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, claude/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Black (Code Formatter Check)
+        run: |
+          black --check --diff bridge.py tests/
+        continue-on-error: false
+
+      - name: Run isort (Import Sorting Check)
+        run: |
+          isort --check-only --diff bridge.py tests/
+        continue-on-error: false
+
+      - name: Run Flake8 (Style Guide Enforcement)
+        run: |
+          flake8 bridge.py tests/ --max-line-length=120 --extend-ignore=E203,W503
+        continue-on-error: false
+
+      - name: Run Pylint (Static Code Analysis)
+        run: |
+          pylint bridge.py --max-line-length=120 --disable=C0103,C0114,C0115,C0116,R0903,R0913,R0914
+        continue-on-error: true
+
+      - name: Run Mypy (Type Checking)
+        run: |
+          mypy bridge.py --ignore-missing-imports --no-strict-optional
+        continue-on-error: true
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run pytest with coverage
+        run: |
+          pytest tests/ -v --cov=bridge --cov-report=xml --cov-report=term --timeout=30
+        timeout-minutes: 5
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety
+
+      - name: Run Bandit (Security Linter)
+        run: |
+          bandit -r bridge.py -f json -o bandit-report.json || true
+          bandit -r bridge.py
+        continue-on-error: true
+
+      - name: Run Safety (Dependency Vulnerability Check)
+        run: |
+          safety check --json || true
+          safety check
+        continue-on-error: true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+
+  validate-config:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate YAML config
+        run: |
+          python -c "import yaml; yaml.safe_load(open('config.yaml'))"
+
+      - name: Validate JSON template
+        run: |
+          python -m json.tool mcp_servers.json.template > /dev/null
+
+      - name: Check for syntax errors
+        run: |
+          python -m py_compile bridge.py
+
+  build:
+    name: Build Package
+    needs: [lint, test, security]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Check package
+        run: |
+          twine check dist/*
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist-packages
+          path: dist/

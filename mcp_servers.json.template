@@ -5,7 +5,52 @@
       "-u",
       "~/.gemini/bridge.py",
       "label_github_issue"
-    ]
+    ],
+    "description": "Automatically label GitHub issues based on content analysis using AI",
+    "version": "1.0.0",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "repo_name": {
+          "type": "string",
+          "description": "GitHub repository in format 'owner/repo' (e.g., 'facebook/react')",
+          "pattern": "^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$",
+          "minLength": 3,
+          "maxLength": 200,
+          "examples": ["facebook/react", "microsoft/vscode", "google/go"]
+        },
+        "issue_number": {
+          "type": "integer",
+          "description": "GitHub issue number (must be a positive integer)",
+          "minimum": 1,
+          "maximum": 999999999,
+          "examples": [123, 456, 789]
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "If true, simulate labeling without making actual changes to GitHub. Default: true",
+          "default": true
+        }
+      },
+      "required": ["repo_name", "issue_number"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["success", "error"]
+        },
+        "labels": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    }
   },
 
   "watch_collect": {
@@ -14,7 +59,73 @@
       "-u",
       "~/.gemini/bridge.py",
       "watch_collect"
-    ]
+    ],
+    "description": "Collect technology watch updates from multiple sources (GitHub, PyPI, npm, etc.)",
+    "version": "1.0.0",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "description": "List of sources to collect updates from. Default: ['github', 'pypi', 'npm']",
+          "items": {
+            "type": "string",
+            "enum": ["github", "pypi", "npm", "reddit", "hackernews"]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": ["github", "pypi", "npm"],
+          "examples": [
+            ["github"],
+            ["github", "pypi"],
+            ["github", "pypi", "npm", "reddit"]
+          ]
+        },
+        "output_format": {
+          "type": "string",
+          "description": "Output format for the collected data. Default: 'markdown'",
+          "enum": ["markdown", "json", "html"],
+          "default": "markdown"
+        },
+        "filters": {
+          "type": "object",
+          "description": "Optional filters to apply to the collected data",
+          "properties": {
+            "keywords": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "languages": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "min_stars": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["success", "error"]
+        },
+        "updates": {
+          "type": "array"
+        },
+        "report_path": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    }
   },
 
   "analyse_watch_report": {
@@ -23,7 +134,61 @@
       "-u",
       "~/.gemini/bridge.py",
       "analyse_watch_report"
-    ]
+    ],
+    "description": "Analyze watch reports using Gemini AI to extract insights and trends",
+    "version": "1.0.0",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "type": "string",
+          "description": "Raw report content as a string (alternative to report_path)",
+          "minLength": 1,
+          "maxLength": 100000
+        },
+        "report_path": {
+          "type": "string",
+          "description": "Path to the report file to analyze (alternative to report)",
+          "pattern": "^[^<>:\"|?*]+$",
+          "examples": [
+            "/Users/user/adk-workspace/veille_agent/rapport_veille.md",
+            "~/adk-workspace/veille_agent/rapport.md"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "description": "Output format for the analysis. Default: 'json'",
+          "enum": ["json", "markdown", "text"],
+          "default": "json"
+        },
+        "analysis_type": {
+          "type": "string",
+          "description": "Type of analysis to perform",
+          "enum": ["summary", "trends", "recommendations", "full"],
+          "default": "full"
+        }
+      },
+      "oneOf": [
+        {"required": ["report"]},
+        {"required": ["report_path"]}
+      ],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["success", "error"]
+        },
+        "analysis": {
+          "type": "object"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    }
   },
 
   "curate_digest": {
@@ -32,6 +197,110 @@
       "-u",
       "~/.gemini/bridge.py",
       "curate_digest"
-    ]
+    ],
+    "description": "Curate content into newsletter format or social media posts from analyzed reports",
+    "version": "1.0.0",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Output format for the curated content. Default: 'newsletter'",
+          "enum": ["newsletter", "thread", "posts", "summary"],
+          "default": "newsletter",
+          "examples": ["newsletter", "thread"]
+        },
+        "output": {
+          "type": "string",
+          "description": "Output markup format. Default: 'markdown'",
+          "enum": ["markdown", "html", "plain"],
+          "default": "markdown"
+        },
+        "source_path": {
+          "type": "string",
+          "description": "Path to the source report or analysis to curate",
+          "pattern": "^[^<>:\"|?*]+$"
+        },
+        "max_items": {
+          "type": "integer",
+          "description": "Maximum number of items to include in the digest",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 10
+        },
+        "tone": {
+          "type": "string",
+          "description": "Tone of voice for the curated content",
+          "enum": ["professional", "casual", "technical", "enthusiastic"],
+          "default": "professional"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["success", "error"]
+        },
+        "newsletter": {
+          "type": "string"
+        },
+        "posts": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  },
+
+  "health_check": {
+    "command": "/usr/bin/python3",
+    "args": [
+      "-u",
+      "~/.gemini/bridge.py",
+      "health_check"
+    ],
+    "description": "Check the health status and metrics of the bridge and all agents",
+    "version": "1.0.0",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["success"]
+        },
+        "health": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["healthy", "degraded"]
+            },
+            "total_calls": {
+              "type": "integer"
+            },
+            "total_errors": {
+              "type": "integer"
+            },
+            "error_rate": {
+              "type": "number"
+            },
+            "agents": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
   }
 }

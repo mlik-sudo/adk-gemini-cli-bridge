@@ -1,0 +1,80 @@
+# ADK-Gemini CLI Bridge Configuration
+# This file configures the bridge behavior, agents, and logging
+
+# Workspace configuration
+workspace:
+  # Path to ADK workspace (supports ~ expansion)
+  path: ~/adk-workspace
+  # Global Python environment path
+  global_python: adk-env/bin/python
+
+# Logging configuration
+logging:
+  # Log file path (supports ~ expansion)
+  file: ~/.gemini/bridge.log
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+  # Enable log rotation
+  rotation:
+    enabled: true
+    # Maximum size per log file (in bytes)
+    max_bytes: 10485760  # 10 MB
+    # Number of backup files to keep
+    backup_count: 5
+
+# Agent configurations
+agents:
+  label_github_issue:
+    # Relative path to agent script (relative to workspace path)
+    path: github_labeler/main.py
+    # Python interpreter path (relative to workspace path)
+    python: adk-env/bin/python
+    # Description for MCP tools
+    description: "Automatically label GitHub issues based on content analysis"
+    # Execution timeout in seconds (0 = no timeout)
+    timeout: 300
+    # Default parameters
+    defaults:
+      dry_run: true
+
+  watch_collect:
+    path: veille_agent/main.py
+    python: veille_agent/.venv/bin/python
+    description: "Collect technology watch updates from multiple sources"
+    timeout: 600  # 10 minutes for collection
+    defaults:
+      sources: ["github", "pypi", "npm"]
+      output_format: "markdown"
+
+  analyse_watch_report:
+    path: gemini_analysis/main.py
+    python: adk-env/bin/python
+    description: "Analyze watch reports using Gemini AI"
+    timeout: 300
+    defaults:
+      format: "json"
+
+  curate_digest:
+    path: curateur_agent/main.py
+    python: adk-env/bin/python
+    description: "Curate content into newsletter or social media posts"
+    timeout: 180
+    defaults:
+      format: "newsletter"
+      output: "markdown"
+
+# Security settings
+security:
+  # Enable parameter validation
+  validate_inputs: true
+  # Enable parameter sanitization
+  sanitize_inputs: true
+  # Maximum parameter string length
+  max_param_length: 10000
+
+# Performance settings
+performance:
+  # Enable metrics collection
+  collect_metrics: true
+  # Metrics retention period in days
+  metrics_retention_days: 30

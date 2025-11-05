@@ -1,0 +1,4 @@
+# Production dependencies
+# The bridge uses only Python standard library for core functionality
+# Additional dependencies for configuration management
+pyyaml>=6.0.1
