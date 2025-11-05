@@ -75,14 +75,51 @@ nano .env
 
 ### 3. Configuration MCP
 
-Ajouter les agents au fichier `~/.gemini/mcp_servers.json` :
+Ajouter les agents au fichier `~/.gemini/mcp_servers.json`.
+
+#### ⚠️ Important : Fusion Manuelle Recommandée
+
+**NE PAS utiliser `cat >>` car cela peut créer un JSON invalide !**
+
+**Méthode recommandée** (fusion manuelle) :
 
 ```bash
-# Fusionner avec votre configuration existante
-cat mcp_servers.json.template >> ~/.gemini/mcp_servers.json
+# 1. Créer une sauvegarde
+cp ~/.gemini/mcp_servers.json ~/.gemini/mcp_servers.json.backup
+
+# 2. Ouvrir les deux fichiers
+nano ~/.gemini/mcp_servers.json
+nano mcp_servers.json.template
+
+# 3. Copier manuellement les entrées des agents depuis le template
+#    vers votre fichier mcp_servers.json existant
 ```
 
-Ou copier manuellement les entrées du template dans votre fichier de configuration.
+**Alternative** (si le fichier n'existe pas encore) :
+
+```bash
+# Seulement si ~/.gemini/mcp_servers.json n'existe PAS
+cp mcp_servers.json.template ~/.gemini/mcp_servers.json
+```
+
+#### ✅ Vérification de la Configuration
+
+Après la fusion, vérifiez que le JSON est valide :
+
+```bash
+# Valider la syntaxe JSON
+python3 -m json.tool ~/.gemini/mcp_servers.json > /dev/null && echo "✓ JSON valide" || echo "✗ JSON invalide"
+
+# Ou avec jq (si installé)
+jq '.' ~/.gemini/mcp_servers.json > /dev/null && echo "✓ JSON valide" || echo "✗ JSON invalide"
+```
+
+Les 5 agents du bridge devraient apparaître :
+- `label_github_issue`
+- `watch_collect`
+- `analyse_watch_report`
+- `curate_digest`
+- `health_check`
 
 ### 4. Structure ADK attendue
 
@@ -317,9 +354,82 @@ grep ERROR ~/.gemini/bridge.log
 grep "watch_collect" ~/.gemini/bridge.log
 ```
 
+## 🩺 Diagnostic et Vérification
+
+### Script de Diagnostic Automatique
+
+Le bridge inclut un outil de diagnostic complet pour vérifier l'installation :
+
+```bash
+# Diagnostic complet
+python3 diagnose.py
+
+# Mode verbose (détails)
+python3 diagnose.py --verbose
+
+# Mode réparation (créer les répertoires manquants)
+python3 diagnose.py --fix
+```
+
+**Le script vérifie :**
+- ✅ Version de Python (≥ 3.8)
+- ✅ Dépendances installées (PyYAML, etc.)
+- ✅ Fichiers du bridge (bridge.py, config.yaml, templates)
+- ✅ Structure du workspace ADK
+- ✅ Environnements virtuels Python
+- ✅ Intégration Gemini CLI
+- ✅ Variables d'environnement
+- ✅ Smoke tests (syntaxe, import, health check)
+
+**Exemple de sortie :**
+
+```
+============================================================
+Python Environment
+============================================================
+
+ℹ Python version: 3.11.5
+✓ Python version >= 3.8
+
+============================================================
+Bridge Installation
+============================================================
+
+✓ bridge.py exists
+✓ config.yaml found
+✓ config.yaml syntax valid
+✓ mcp_servers.json.template exists
+✓ MCP template valid (5 agents configured)
+
+============================================================
+Summary
+============================================================
+
+Checks passed: 42/45
+
+⚠ Warnings (3):
+  ⚠ Agent 'veille_agent' exists: Script not found
+  ⚠ Python interpreter not found: .venv/bin/python
+  ⚠ GITHUB_TOKEN not set (optional)
+
+✓ All checks passed! Bridge is ready.
+```
+
 ## 🐛 Dépannage
 
-### Erreur "Python interpreter not found"
+### 1. Exécuter le Diagnostic
+
+**Avant tout dépannage**, lancez le script de diagnostic :
+
+```bash
+python3 diagnose.py --verbose
+```
+
+Il identifiera automatiquement la plupart des problèmes.
+
+### 2. Erreurs Courantes
+
+#### Erreur "Python interpreter not found"
 
 Vérifiez que les environnements virtuels existent :
 ```bash
@@ -327,19 +437,41 @@ ls -la ~/adk-workspace/veille_agent/.venv/bin/python
 ls -la ~/adk-workspace/adk-env/bin/python
 ```
 
-### Erreur "Agent script not found"
+#### Erreur "Agent script not found"
 
 Vérifiez la structure du workspace ADK :
 ```bash
 ls -la ~/adk-workspace/*/main.py
 ```
 
-### MCP servers not appearing
+#### MCP servers not appearing
 
 Redémarrez Gemini CLI et vérifiez :
 ```bash
 gemini
 /mcp list
+```
+
+#### Validation JSON échouée
+
+Si le diagnostic signale un JSON invalide :
+
+```bash
+# Vérifier la syntaxe
+python3 -m json.tool config.yaml 2>&1 | head -20
+
+# Restaurer depuis la sauvegarde
+cp config.yaml.backup config.yaml
+```
+
+#### Permissions refusées
+
+```bash
+# Rendre le bridge exécutable
+chmod +x ~/.gemini/bridge.py
+
+# Vérifier les permissions
+ls -la ~/.gemini/bridge.py
 ```
 
 ## 🧪 Tests

@@ -5,6 +5,59 @@ Tous les changements notables de ce projet seront documentés dans ce fichier.
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
 et ce projet adhère au [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-11-05
+
+### ✨ Ajouté
+
+#### Outils de Diagnostic
+- **Script de diagnostic complet** (`diagnose.py`)
+  - Vérification automatique de l'installation
+  - 40+ checks (Python, dépendances, fichiers, workspace, agents)
+  - Mode verbose pour détails
+  - Mode `--fix` pour réparations automatiques
+  - Smoke tests intégrés (syntaxe, import, health check)
+  - Output coloré avec résumé détaillé
+
+#### Documentation
+- **AGENT_PROTOCOL.md** - Documentation complète du protocole
+  - Détails du protocole hybride (CLI args + JSON stdin)
+  - Guide d'implémentation pour les développeurs d'agents
+  - Exemples de code pour chaque approche
+  - Spécifications de validation des paramètres
+  - Best practices et troubleshooting
+  - Guide de migration
+
+### 🔧 Modifié
+
+#### README
+- Amélioration section configuration MCP
+  - ⚠️ Avertissement contre `cat >>` (risque de JSON invalide)
+  - Instructions de fusion manuelle détaillées
+  - Commandes de validation JSON
+  - Sauvegarde recommandée
+- Ajout section "Diagnostic et Vérification"
+  - Documentation du script diagnose.py
+  - Exemple de sortie
+  - Liste des vérifications effectuées
+- Amélioration section "Dépannage"
+  - Structuration en sous-sections numérotées
+  - Ajout troubleshooting JSON invalide
+  - Ajout troubleshooting permissions
+
+### 📝 Notes
+
+- La création automatique du répertoire de logs existait déjà (bridge.py:272)
+- La validation de l'existence des scripts agents existait déjà (bridge.py:407)
+- L'import `lru_cache` inutilisé avait déjà été supprimé dans v1.0.0
+
+### 🔄 Compatibilité
+
+- Rétrocompatible avec v1.0.0
+- Aucun changement dans l'API ou le protocole
+- Script diagnose.py est optionnel
+
+---
+
 ## [1.0.0] - 2025-11-05
 
 ### ✨ Ajouté
