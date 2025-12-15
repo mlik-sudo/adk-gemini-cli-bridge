@@ -10,6 +10,7 @@ Ce projet implémente une solution bridge qui expose 4 agents ADK comme outils u
 - **🧠 Analysis Agent** - Analyse des rapports avec Gemini
 - **📝 Curator Agent** - Curation de contenu (newsletter/thread)
 - **🏷️ GitHub Labeler Agent** - Étiquetage automatique d'issues
+- **🩺 Healthcheck** - Vérifie que les chemins et interprètes sont accessibles
 
 ## 🏗️ Architecture
 
@@ -29,6 +30,7 @@ ADK Agents ↔ bridge.py ↔ Gemini CLI ↔ Claude Code
 - Python 3.8+
 - Gemini CLI installé et configuré
 - Workspace ADK avec les 4 agents dans `~/adk-workspace/`
+- Variable d'environnement optionnelle `ADK_WORKSPACE` pour personnaliser le chemin du workspace
 
 ### 2. Installation du Bridge
 
@@ -90,6 +92,7 @@ run_tool watch_collect {"sources":["github","pypi"]}
 run_tool analyse_watch_report {"report_path":"/path/to/report.md"}
 run_tool curate_digest {"format":"newsletter"}
 run_tool label_github_issue {"repo_name":"owner/repo","issue_number":123}
+run_tool healthcheck {}
 ```
 
 ### Via CLI direct
@@ -153,6 +156,16 @@ Exemple :
 {"repo_name": "facebook/react", "issue_number": 123, "dry_run": false}
 ```
 
+### 🩺 healthcheck
+**Validation des chemins des agents**
+
+Retourne l'état des scripts et interprètes pour chaque agent configuré.
+
+Exemple :
+```json
+{"tool": "healthcheck", "params": {}}
+```
+
 ## 🔧 Configuration
 
 ### Variables d'environnement
@@ -161,8 +174,11 @@ Exemple :
 # Pour GitHub Labeler Agent
 export GITHUB_TOKEN="your_github_token"
 
-# Pour Gemini Analysis Agent  
+# Pour Gemini Analysis Agent
 export GEMINI_API_KEY="your_gemini_api_key"
+
+# Pour personnaliser le workspace ADK (défaut: ~/adk-workspace)
+export ADK_WORKSPACE="/custom/path/to/adk-workspace"
 ```
 
 ### Logs

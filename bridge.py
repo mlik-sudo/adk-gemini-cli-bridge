@@ -17,29 +17,45 @@ from functools import lru_cache
 # ---------------------------------------------------------------------------
 # 1.  Configuration des chemins vers les agents ADK ----------------------
 # ---------------------------------------------------------------------------
-ADK_WORKSPACE = Path.home() / "adk-workspace"
-AGENTS_CONFIG = {
-    "label_github_issue": {
-        "path": ADK_WORKSPACE / "github_labeler" / "main.py",
-        "python": ADK_WORKSPACE / "adk-env" / "bin" / "python",
-        "description": "GitHub Issue Labeler Agent"
-    },
-    "watch_collect": {
-        "path": ADK_WORKSPACE / "veille_agent" / "main.py",
-        "python": ADK_WORKSPACE / "veille_agent" / ".venv" / "bin" / "python", 
-        "description": "Watch/Veille Agent for collecting tech updates"
-    },
-    "analyse_watch_report": {
-        "path": ADK_WORKSPACE / "gemini_analysis" / "main.py",
-        "python": ADK_WORKSPACE / "adk-env" / "bin" / "python",
-        "description": "Gemini Analysis Agent for report analysis"
-    },
-    "curate_digest": {
-        "path": ADK_WORKSPACE / "curateur_agent" / "main.py",
-        "python": ADK_WORKSPACE / "adk-env" / "bin" / "python",
-        "description": "Curator Agent for content curation"
+
+
+def get_workspace_root() -> Path:
+    """Return the ADK workspace root (can be overridden with ADK_WORKSPACE env)."""
+
+    env_override = os.environ.get("ADK_WORKSPACE")
+    return Path(env_override).expanduser() if env_override else Path.home() / "adk-workspace"
+
+
+@lru_cache(maxsize=1)
+def get_agents_config() -> dict:
+    """Build the agents configuration using the current workspace root."""
+
+    workspace = get_workspace_root()
+    return {
+        "label_github_issue": {
+            "path": workspace / "github_labeler" / "main.py",
+            "python": workspace / "adk-env" / "bin" / "python",
+            "description": "GitHub Issue Labeler Agent"
+        },
+        "watch_collect": {
+            "path": workspace / "veille_agent" / "main.py",
+            "python": workspace / "veille_agent" / ".venv" / "bin" / "python",
+            "description": "Watch/Veille Agent for collecting tech updates"
+        },
+        "analyse_watch_report": {
+            "path": workspace / "gemini_analysis" / "main.py",
+            "python": workspace / "adk-env" / "bin" / "python",
+            "description": "Gemini Analysis Agent for report analysis"
+        },
+        "curate_digest": {
+            "path": workspace / "curateur_agent" / "main.py",
+            "python": workspace / "adk-env" / "bin" / "python",
+            "description": "Curator Agent for content curation"
+        }
     }
-}
+
+ADK_WORKSPACE = get_workspace_root()
+AGENTS_CONFIG = get_agents_config()
 
 # ---------------------------------------------------------------------------
 # 2.  Setup logging --------------------------------------------------------
@@ -53,24 +69,58 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# 3.  Agent execution functions --------------------------------------------
+# 3.  Agent helpers --------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+
+def validate_agent(agent_name: str) -> dict:
+    """Validate that the agent script and Python interpreter exist."""
+
+    agent_config = AGENTS_CONFIG[agent_name]
+    agent_path = agent_config["path"].expanduser()
+    python_path = agent_config["python"].expanduser()
+
+    issues = []
+    if not agent_path.exists():
+        issues.append(f"Agent script not found: {agent_path}")
+    if not python_path.exists():
+        issues.append(f"Python interpreter not found: {python_path}")
+
+    status = "ok" if not issues else "error"
+    return {
+        "status": status,
+        "script": str(agent_path),
+        "python": str(python_path),
+        "issues": issues,
+    }
+
+
+def healthcheck() -> dict:
+    """Return the validation status for all configured agents."""
+
+    return {name: validate_agent(name) for name in AGENTS_CONFIG}
+
+
+# ---------------------------------------------------------------------------
+# 4.  Agent execution functions --------------------------------------------
 # ---------------------------------------------------------------------------
 
 def run_agent_script(agent_name: str, params: dict) -> dict:
     """Execute an ADK agent Python script with parameters."""
     try:
         agent_config = AGENTS_CONFIG[agent_name]
-        agent_path = agent_config["path"]
-        python_path = agent_config["python"]
-        
-        # Check if the Python interpreter exists
-        if not python_path.exists():
-            return {"status": "error", "error": f"Python interpreter not found: {python_path}"}
-        
+        agent_path = agent_config["path"].expanduser()
+        python_path = agent_config["python"].expanduser()
+
+        validation = validate_agent(agent_name)
+        if validation["issues"]:
+            return {"status": "error", "error": "; ".join(validation["issues"])}
+
         # Prepare the environment
         env = os.environ.copy()
         env["PYTHONPATH"] = str(ADK_WORKSPACE)
-        
+        env["ADK_WORKSPACE"] = str(ADK_WORKSPACE)
+
         # Convert params to command line arguments or JSON input
         cmd = [str(python_path), str(agent_path)]
         
@@ -156,6 +206,12 @@ def dispatch_curate_digest(params: dict) -> dict:
     merged_params = {**default_params, **params}
     return run_agent_script("curate_digest", merged_params)
 
+
+def dispatch_healthcheck(_params: dict) -> dict:
+    """Report readiness for every configured agent."""
+
+    return {"status": "success", "workspace": str(ADK_WORKSPACE), "agents": healthcheck()}
+
 # ---------------------------------------------------------------------------
 # 5.  Main dispatch function -----------------------------------------------
 # ---------------------------------------------------------------------------
@@ -172,6 +228,7 @@ def dispatch(tool: str, params: dict = None) -> dict:
         "watch_collect": dispatch_watch_collect,
         "analyse_watch_report": dispatch_analyse_watch_report,
         "curate_digest": dispatch_curate_digest,
+        "healthcheck": dispatch_healthcheck,
     }
     
     if tool not in dispatchers:

@@ -33,5 +33,14 @@
       "~/.gemini/bridge.py",
       "curate_digest"
     ]
+  },
+
+  "healthcheck": {
+    "command": "/usr/bin/python3",
+    "args": [
+      "-u",
+      "~/.gemini/bridge.py",
+      "healthcheck"
+    ]
   }
 }
